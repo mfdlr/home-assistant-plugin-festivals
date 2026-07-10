@@ -27,22 +27,20 @@ def get_addon_config():
         print("Error: Could not parse options.json. Invalid JSON format.")
         return {}
 
+# Example usage
 config = get_addon_config()
 
-# --- Configuration --- 
-MQTT_BROKER_HOST = config.get("mqtt_host", "127.0.0.1")
-MQTT_BROKER_PORT = config.get("mqtt_port", 1883) 
-MQTT_BROKER_USERNAME = config.get("mqtt_username", None) # Optional 
-MQTT_BROKER_PASSWORD = config.get("mqtt_password", None) # Optional 
-
-FRIDGE_MAC_ADDRESS = config.get("fridge_mac_address", "00:00:00:00:00:00")
-FRIDGE_DEVICE_ID = config.get("fridge_device_id", "MyFridge")
-FRIDGE_MIN_TEMP = config.get("fridge_min_temp", -20)
-FRIDGE_MAX_TEMP = config.get("fridge_max_temp", 20)
-FRIDGE_TEMPERATURE_STEP = config.get("fridge_temperature_step", 1)
-FRIDGE_VERBOSE = config.get("fridge_verbose", False)
+# --- Konfiguration --- 
+MQTT_BROKER_HOST = config.get("fridge_mac_address", "127.0.0.1")
+MQTT_BROKER_PORT = 1883 
+MQTT_BROKER_USERNAME = "cube50" # Optional 
+MQTT_BROKER_PASSWORD = "13Ke2YhVjizo" # Optional 
  
-# MQTT topics for Home Assistant climate integration 
+FRIDGE_MAC_ADDRESS = config.get("fridge_mac_address", "127.0.0.1")" E1:91:3A:39:1E:1C" # ERSETZE DIES DURCH DIE MAC-ADRESSE DEINES KÜHLSCHRANKS 
+FRIDGE_DEVICE_ID = "IceCube50" # Ein eindeutiger Bezeichner für dein Gerät in Home Assistant 
+FRIDGE_VERBOSE = False # Verbosity true/false 
+ 
+# MQTT-Topics für Home Assistant Climate Integration 
 BASE_TOPIC = f"homeassistant/climate/{FRIDGE_DEVICE_ID}" 
 DISCOVERY_TOPIC = f"{BASE_TOPIC}/config" 
 STATE_TOPIC = f"{BASE_TOPIC}/state" 
@@ -53,12 +51,13 @@ MODE_COMMAND_TOPIC = f"{BASE_TOPIC}/mode/set"
 PRESET_COMMAND_TOPIC = f"{BASE_TOPIC}/preset_mode/set" 
 TEMP_COMMAND_TOPIC = f"{BASE_TOPIC}/target_temperature/set" 
  
-UPDATE_INTERVAL_SECONDS = 10
+UPDATE_INTERVAL_SECONDS = 10 # Wie oft der Sensor ausgelesen und Status gesendet wird 
  
+# Logging konfigurieren 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s') 
 logger = logging.getLogger(__name__) 
  
-# global variables 
+# Globale Variable für den MQTT-Client 
 mqtt_client = None 
 fridge_instance: Optional[Fridge] = None # Um die Fridge-Instanz global zugänglich zu machen 
 fridge_data: Optional[FridgeData] = None # Um die Fridge-Daten global zugänglich zu machen 
@@ -68,115 +67,117 @@ asyncio_loop: Optional[asyncio.AbstractEventLoop] = None
 # --- MQTT Callbacks --- 
 def on_connect(client, userdata, flags, rc): 
    if rc == 0:
-       logger.info("Connected to MQTT broker!")
+       logger.info("Mit MQTT Broker verbunden!")
        client.subscribe(MODE_COMMAND_TOPIC)
        client.subscribe(TEMP_COMMAND_TOPIC)
        client.subscribe(PRESET_COMMAND_TOPIC)
-       logger.info(f"Subscribed: {MODE_COMMAND_TOPIC}")
-       logger.info(f"Subscribed: {TEMP_COMMAND_TOPIC}")
-       logger.info(f"Subscribed: {PRESET_COMMAND_TOPIC}")
-       publish_ha_discovery()
+       logger.info(f"Abonniert: {MODE_COMMAND_TOPIC}")
+       logger.info(f"Abonniert: {TEMP_COMMAND_TOPIC}")
+       logger.info(f"Abonniert: {PRESET_COMMAND_TOPIC}")
+       publish_ha_discovery() # Discovery-Nachricht nach Verbindung senden
    else:
-       logger.error(f"Connection to MQTT broker failed, error code: {rc}")
+       logger.error(f"Verbindung zu MQTT Broker fehlgeschlagen, Fehlercode: {rc}")
  
 def on_message(client, userdata, msg): 
    global fridge_instance, fridge_data
    topic = msg.topic
    payload = msg.payload.decode()
-   logger.info(f"Received MQTT message - topic: {topic}, payload: {payload}")
+   logger.info(f"MQTT Nachricht empfangen - Topic: {topic}, Payload: {payload}")
  
    if fridge_instance is None:
-       logger.warning("Fridge not connected, unable to run command.")
+       logger.warning("Kühlschrank ist nicht verbunden, Befehl kann nicht ausgeführt werden.")
        return
  
+   # Sicherstellen, dass der asyncio_loop verfügbar ist
    if asyncio_loop is None:
-       logger.error("Asyncio Event Loop not available, unable to run command.")
+       logger.error("Asyncio Event Loop nicht verfügbar, kann Befehl nicht ausführen.")
        return
  
    if topic == MODE_COMMAND_TOPIC:
        if payload == "off":
            fridge_data.powered_on = False
            asyncio.run_coroutine_threadsafe(fridge_instance.set(fridge_data), asyncio_loop)
-           logger.info("Fridge turned off by MQTT command.")
-       elif payload == "cool": # Or "HEAT", "AUTO", depending on fridge
+           logger.info("Kühlschrank ausgeschaltet via MQTT.")
+       elif payload == "cool": # Oder "HEAT", "AUTO", je nachdem was dein Kühlschrank unterstützt
            fridge_data.powered_on = True
            asyncio.run_coroutine_threadsafe(fridge_instance.set(fridge_data), asyncio_loop)
-           logger.info("Fridge turned on by MQTT command (Mode: COOL).")
+           logger.info("Kühlschrank eingeschaltet via MQTT (Modus: COOL).")
        else:
-           logger.warning(f"Unknown mode command: {payload}")
+           logger.warning(f"Unbekannter Modus-Befehl: {payload}")
    elif topic == PRESET_COMMAND_TOPIC:
        if payload == "eco":
            fridge_data.run_mode = 1 # Beispielwert für Eco-Modus
            asyncio.run_coroutine_threadsafe(fridge_instance.set(fridge_data), asyncio_loop)
-           logger.info("Activated Eco-Mode by MQTT command.")
+           logger.info("Eco-Modus aktiviert via MQTT.")
        elif payload == "boost":
            fridge_data.run_mode = 0 # Beispielwert für Boost-Modus
            asyncio.run_coroutine_threadsafe(fridge_instance.set(fridge_data), asyncio_loop)
-           logger.info("Activated Boost-Mode by MQTT command.")
+           logger.info("Boost-Modus aktiviert via MQTT.")
        else:
-          logger.warning(f"Unknown Preset-Mode: {payload}")   
+          logger.warning(f"Unbekannter Preset-Modus: {payload}")   
    elif topic == TEMP_COMMAND_TOPIC:
        try:
            target_temp = float(payload)
-           if FRIDGE_MIN_TEMP <= target_temp <= FRIDGE_MAX_TEMP:
+           # Begrenze die Temperatur auf sinnvolle Werte, die dein Kühlschrank unterstützt
+           if -20 <= target_temp <= 20: # Beispiel: 0 bis 20 Grad Celsius
                asyncio.run_coroutine_threadsafe(fridge_instance.set_unit1_target_temperature(int(target_temp)), asyncio_loop)
-               logger.info(f"Set target temperature to {target_temp}°C by MQTT.")
+               logger.info(f"Wunschtemperatur auf {target_temp}°C gesetzt via MQTT.")
            else:
-               logger.warning(f"Invalid temperature range: {target_temp}°C")
+               logger.warning(f"Ungültiger Temperaturbereich: {target_temp}°C")
        except ValueError:
-           logger.error(f"Invalid temperature payload: {payload}")
+           logger.error(f"Ungültiger Temperatur-Payload: {payload}")
  
 # --- Home Assistant Discovery --- 
 def publish_ha_discovery(): 
    discovery_payload = {
-       "name": f"Fridge {FRIDGE_DEVICE_ID}",
+       "name": f"Kühlschrank {FRIDGE_DEVICE_ID}",
        "unique_id": f"fridge_{FRIDGE_DEVICE_ID}_climate",
        "device": {
            "identifiers": [FRIDGE_DEVICE_ID],
-           "name": f"Bluetooth Fridge {FRIDGE_DEVICE_ID}",
-           "model": config.get("fridge_model", "IceCube 50"),
-           "manufacturer": config.get("fridge_manufacturer", "Plug-In Festivals")
+           "name": f"Bluetooth Kühlschrank {FRIDGE_DEVICE_ID}",
+           "model": "IceCube 50",
+           "manufacturer": "Plug-In Festivals",
        },
        "temperature_unit": "C",
-       "min_temp": FRIDGE_MIN_TEMP,
-       "max_temp": FRIDGE_MAX_TEMP,
-       "temperature_step": FRIDGE_TEMPERATURE_STEP,
+       "min_temp": -20,
+       "max_temp": 20,
+       "temperature_step": 1,
        "modes": ["off", "cool"],
        'preset_modes': ["eco", "boost"],
        "current_temperature_topic": CURRENT_TEMP_STATE_TOPIC,
-       "current_temperature_state_topic": CURRENT_TEMP_STATE_TOPIC, # redundant
+       "current_temperature_state_topic": CURRENT_TEMP_STATE_TOPIC, # Redundant, aber oft so verwendet
        "mode_state_topic": STATE_TOPIC,
        "mode_command_topic": MODE_COMMAND_TOPIC,
        'preset_mode_state_topic': f"{BASE_TOPIC}/preset_mode",
        'preset_mode_command_topic': f"{BASE_TOPIC}/preset_mode/set",
        "temperature_command_topic": TEMP_COMMAND_TOPIC,
        "temperature_topic": TARGET_TEMP_STATE_TOPIC,
-       "temperature_state_topic": TARGET_TEMP_STATE_TOPIC, # redundant
+       "temperature_state_topic": TARGET_TEMP_STATE_TOPIC, # Redundant, aber oft so verwendet
    }
    mqtt_client.publish(DISCOVERY_TOPIC, json.dumps(discovery_payload), qos=0, retain=True)
-   logger.info(f"Send discovery to Home Assistant: {DISCOVERY_TOPIC}")
+   logger.info(f"Home Assistant Discovery-Nachricht gesendet an: {DISCOVERY_TOPIC}")
  
-# --- main loop read and send --- 
+# --- Hauptlogik zum Auslesen und Senden --- 
 async def fridge_mqtt_loop(): 
    global fridge_instance
    global fridge_data
    while True:
        try:
-           # connect to fridge
+           # Verbindung zum Kühlschrank herstellen
            if fridge_instance is None:
-               logger.info(f"Trying to connect to fridge ({FRIDGE_MAC_ADDRESS})...")
+               logger.info(f"Versuche Verbindung zum Kühlschrank ({FRIDGE_MAC_ADDRESS}) herzustellen...")
                fridge_instance = Fridge(FRIDGE_MAC_ADDRESS, FRIDGE_VERBOSE)
                await fridge_instance.connect()
-               logger.info("Connected to fridge!")
-               # Re-send discovery in case HA was offline/restarted
+               logger.info("Kühlschrank verbunden!")
+               # Nach erfolgreicher Verbindung erneut Discovery senden, falls HA offline war
                publish_ha_discovery()
  
-           # Read status from fridge
+           # Status auslesen
            status = await fridge_instance.query()
            fridge_data = status
-           logger.debug(f"Fridge status: {status}")
+           logger.debug(f"Kühlschrankstatus: {status}")
  
-           # Send status to MQTT
+           # Status an MQTT senden
            current_temp = status.unit1.current_temperature
            target_temp = status.unit1.target_temperature
            power_state = status.powered_on
@@ -185,7 +186,7 @@ async def fridge_mqtt_loop():
            # Home Assistant "mode" State
            ha_mode = "off"
            if power_state:
-               ha_mode = "cool" # or "AUTO", "HEAT" etc.
+               ha_mode = "cool" # Oder "AUTO", "HEAT" etc., je nach Funktion
          
            ha_preset_mode = "boost" if preset_state == 0 else "eco"
  
@@ -216,27 +217,27 @@ async def fridge_mqtt_loop():
            #    mqtt_client.publish(f"homeassistant/sensor/{FRIDGE_DEVICE_ID}_battery/config", json.dumps(battery_discovery_payload), qos=0, retain=True)
  
        except Exception as e:
-           logger.error(f"Exception in fridge_mqtt_loop: {e}")
+           logger.error(f"Fehler im Hauptloop: {e}")
            if fridge_instance:
                try:
                    # WICHTIG: Klammern und await hinzugefügt!
                    await fridge_instance.disconnect()
-                   logger.info("Disconnected fridge.")
+                   logger.info("Kühlschrankverbindung sauber getrennt.")
                except Exception as disconnect_e:
-                   logger.error(f"Error disconnecting fridge: {disconnect_e}")
+                   logger.error(f"Fehler beim Trennen der Kühlschrankverbindung: {disconnect_e}")
          
            fridge_instance = None # Setzt die Instanz zurück, um Neuverbindung zu erzwingen
          
            # 30 Sekunden warten, bevor ein neuer Verbindungsversuch startet
-           logger.info("Retrying fridge connect in 30 seconds...")
+           logger.info("Warte 30 Sekunden bis zum nächsten Verbindungsversuch...")
            await asyncio.sleep(30)
          
        await asyncio.sleep(UPDATE_INTERVAL_SECONDS)
  
-# --- main --- 
+# --- Hauptfunktion --- 
 async def main(): 
    global mqtt_client, asyncio_loop
-   asyncio_loop = asyncio.get_running_loop()
+   asyncio_loop = asyncio.get_running_loop() # Den aktuellen Event-Loop holen
    mqtt_client = mqtt.Client(client_id=f"fridge_monitor_{FRIDGE_DEVICE_ID}")
  
    if MQTT_BROKER_USERNAME and MQTT_BROKER_PASSWORD:
@@ -246,9 +247,9 @@ async def main():
    mqtt_client.on_message = on_message
  
    mqtt_client.connect(MQTT_BROKER_HOST, MQTT_BROKER_PORT, 60)
-   mqtt_client.loop_start() # start MQTT client loop in separate thread
+   mqtt_client.loop_start() # Startet den MQTT-Client-Loop in einem separaten Thread
  
-   await fridge_mqtt_loop() # start AsyncIO loop for fridge
+   await fridge_mqtt_loop() # Startet den AsyncIO-Loop für den Kühlschrank
  
 if __name__ == "__main__": 
    try:

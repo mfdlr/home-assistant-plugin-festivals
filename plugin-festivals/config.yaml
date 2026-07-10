@@ -13,13 +13,27 @@ privileged:
   - NET_RAW
 options:
   fridge_mac_address: "AA:BB:CC:DD:EE:FF"
+  fridge_manufacturer: "Plug-In Festivals"
+  fridge_model: "IceCube 50"
+  fridge_device_id: "IceCube50"
+  fridge_min_temp: -20
+  fridge_max_temp: 20
+  fridge_temperature_step: 1
+  fridge_verbose: false
   mqtt_host: "127.0.0.1"
   mqtt_port: 1883
   mqtt_username:
   mqtt_password:
 schema:
   fridge_mac_address: str
+  fridge_manufacturer: str
+  fridge_model: str
+  fridge_device_id: "str?"
+  fridge_min_temp: "int?"
+  fridge_max_temp: "int?"
+  fridge_temperature_step: "int?"
+  fridge_verbose: "bool?"
   mqtt_host: str
-  mqtt_port: 1883
+  mqtt_port: int
   mqtt_username: "str?"
   mqtt_password: "password?"
