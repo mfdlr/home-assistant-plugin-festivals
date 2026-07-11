@@ -1,6 +1,6 @@
 #include <tunables/global>
 
-profile plugin-festivals flags=(attach_disconnected,mediate_deleted) {
+profile pluginfestivals flags=(attach_disconnected,mediate_deleted) {
   #include <abstractions/base>
 
   # Capabilities
