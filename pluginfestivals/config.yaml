@@ -1,6 +1,6 @@
 name: "Plug-In Festivals"
 description: "Add Plug-In fridges as climate entity"
-version: "0.5.2"
+version: "0.5.3"
 slug: "pluginfestivals"
 init: false
 apparmor: false
